@@ -33,6 +33,8 @@ jobs:
       run: swift --version
     - name: Build
       run: swift build
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Run tests
       run: |
         [ -d Tests ] && swift test --parallel
