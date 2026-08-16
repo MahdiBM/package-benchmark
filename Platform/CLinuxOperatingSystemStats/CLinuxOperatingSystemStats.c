@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <string.h> // memset
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 #include <errno.h>
 
 static void CLinuxPerformanceCountersInit();
@@ -197,6 +198,25 @@ void CLinuxProcessStats(const char *s, struct processStats *processStats) {
     processStats->peakMemoryVirtual = peakMemoryVirtual;
     processStats->peakMemoryResident = peakMemoryResident;
     processStats->cpuTotal = cpuUser + cpuSystem;
+}
+
+// /proc/self/stat reports CPU time in USER_HZ ticks (10ms), getrusage() in microseconds.
+void CLinuxCPUTimeStats(struct cpuTimeStats *cpuTimeStats) {
+    struct rusage usage;
+
+    if (getrusage(RUSAGE_SELF, &usage) != 0) {
+        cpuTimeStats->cpuUser = 0;
+        cpuTimeStats->cpuSystem = 0;
+        cpuTimeStats->cpuTotal = 0;
+        return;
+    }
+
+    long long cpuUser = (long long)usage.ru_utime.tv_sec * 1000000000LL + (long long)usage.ru_utime.tv_usec * 1000LL;
+    long long cpuSystem = (long long)usage.ru_stime.tv_sec * 1000000000LL + (long long)usage.ru_stime.tv_usec * 1000LL;
+
+    cpuTimeStats->cpuUser = cpuUser;
+    cpuTimeStats->cpuSystem = cpuSystem;
+    cpuTimeStats->cpuTotal = cpuUser + cpuSystem;
 }
 
 /*
