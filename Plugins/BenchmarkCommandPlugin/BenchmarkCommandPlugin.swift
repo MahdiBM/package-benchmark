@@ -559,9 +559,14 @@ import PackagePlugin
                     }
                 }
 
+                var targetBuildParameters = PackageManager.BuildParameters(configuration: mode)
+                targetBuildParameters.otherSwiftcFlags.append(
+                    contentsOf: otherSwiftFlagsSpecified.map { "-\($0)" }
+                )
+
                 let buildResult = try packageManager.build(
                     .product(target.name), // .all(includingTests: false),
-                    parameters: .init(configuration: mode)
+                    parameters: targetBuildParameters
                 )
 
                 guard buildResult.succeeded else {
