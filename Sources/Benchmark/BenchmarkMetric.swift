@@ -103,6 +103,10 @@ public enum BenchmarkMetric: Hashable, Equatable, Codable, CustomStringConvertib
     case writeBytesPhysical
     /// The number instructions executed
     case instructions
+    /// The number of CPU cycles elapsed
+    case cycles
+    /// The branch misprediction rate (mispredicted / total branches), scaled so that 100% == 100_000
+    case branchMissRate
     /// Number of object allocations (implicit retain of one) (ARC)
     case objectAllocCount
     /// Number of retains (ARC)
@@ -168,7 +172,7 @@ public extension BenchmarkMetric {
             return true
         case .writeSyscalls, .writeBytesLogical, .writeBytesPhysical:
             return true
-        case .instructions:
+        case .instructions, .cycles:
             return true
         case .objectAllocCount, .retainCount, .releaseCount, .retainReleaseDelta:
             return true
@@ -247,6 +251,10 @@ public extension BenchmarkMetric {
             return "Bytes (write physical)"
         case .instructions:
             return "Instructions"
+        case .cycles:
+            return "Cycles"
+        case .branchMissRate:
+            return "Branch miss rate (1000 == 1%)"
         case .objectAllocCount:
             return "Object allocs"
         case .retainCount:
@@ -334,13 +342,17 @@ public extension BenchmarkMetric {
             return 31
         case .mallocFreeDelta:
             return 32
+        case .branchMissRate:
+            return 33
+        case .cycles:
+            return 34
         default:
             return 0 // custom payloads must be stored in dictionary
         }
     }
 
     @_documentation(visibility: internal)
-    static var maxIndex: Int { 32 } //
+    static var maxIndex: Int { 34 } //
 
     // Used by the Benchmark Executor for efficient indexing into results
     @_documentation(visibility: internal)
@@ -410,6 +422,10 @@ public extension BenchmarkMetric {
             return .instructions
         case 32:
             return .mallocFreeDelta
+        case 33:
+            return .branchMissRate
+        case 34:
+            return .cycles
         default:
             break
         }
@@ -477,6 +493,10 @@ public extension BenchmarkMetric {
             return "writeBytesPhysical"
         case .instructions:
             return "instructions"
+        case .cycles:
+            return "cycles"
+        case .branchMissRate:
+            return "branchMissRate"
         case .objectAllocCount:
             return "objectAllocCount"
         case .retainCount:
@@ -557,6 +577,10 @@ public extension BenchmarkMetric {
             self = BenchmarkMetric.writeBytesPhysical
         case "instructions":
             self = BenchmarkMetric.instructions
+        case "cycles":
+            self = BenchmarkMetric.cycles
+        case "branchMissRate":
+            self = BenchmarkMetric.branchMissRate
         case "objectAllocCount":
             self = BenchmarkMetric.objectAllocCount
         case "retainCount":

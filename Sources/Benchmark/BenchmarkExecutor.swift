@@ -129,6 +129,7 @@ struct BenchmarkExecutor { // swiftlint:disable:this type_body_length
         }
 
         var timingOverheadInInstructions: UInt64 = 0
+        var timingOverheadInCycles: UInt64 = 0
         if performanceCountersRequested {
             let numberOfMeasurements: UInt64 = 5
             operatingSystemStatsProducer.enablePerformanceCounters()
@@ -138,8 +139,10 @@ struct BenchmarkExecutor { // swiftlint:disable:this type_body_length
                 blackHole(BenchmarkClock.now) // must be as close to last in closure as possible
                 let statsTwo = operatingSystemStatsProducer.makePerformanceCounters()
                 timingOverheadInInstructions += max((statsTwo.instructions - statsOne.instructions), 0)
+                timingOverheadInCycles += max((statsTwo.cycles - statsOne.cycles), 0)
             }
             timingOverheadInInstructions /= numberOfMeasurements
+            timingOverheadInCycles /= numberOfMeasurements
             operatingSystemStatsProducer.disablePerformanceCounters()
         }
 
@@ -358,6 +361,24 @@ struct BenchmarkExecutor { // swiftlint:disable:this type_body_length
                     }
                     if delta > 0 {
                         statistics[BenchmarkMetric.instructions.index].add(Int(delta))
+                    }
+
+                    delta = Int(stopPerformanceCounters.cycles - startPerformanceCounters.cycles)
+                    if delta > timingOverheadInCycles {
+                        delta -= Int(timingOverheadInCycles)
+                    }
+                    if delta > 0 {
+                        statistics[BenchmarkMetric.cycles.index].add(Int(delta))
+                    }
+
+                    let branchMissesDelta = Int(
+                        stopPerformanceCounters.branchMisses - startPerformanceCounters.branchMisses
+                    )
+                    let branchesDelta = Int(stopPerformanceCounters.branches - startPerformanceCounters.branches)
+                    if branchesDelta > 0 {
+                        // Branch miss rate as a fraction scaled so that 100% == 100_000 (i.e. 0.001% resolution)
+                        let branchMissRate = branchMissesDelta * 100_000 / branchesDelta
+                        statistics[BenchmarkMetric.branchMissRate.index].add(branchMissRate)
                     }
                 }
             }

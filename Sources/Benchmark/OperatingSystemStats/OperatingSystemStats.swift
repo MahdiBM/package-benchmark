@@ -45,4 +45,10 @@ struct OperatingSystemStats {
 struct PerformanceCounters {
     /// The number instructions executed
     var instructions: UInt64 = 0
+    /// The number of CPU cycles elapsed
+    var cycles: UInt64 = 0
+    /// The number of branch instructions
+    var branches: UInt64 = 0
+    /// The number of mispredicted branches
+    var branchMisses: UInt64 = 0
 }

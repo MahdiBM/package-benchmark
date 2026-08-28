@@ -80,6 +80,7 @@ public extension BenchmarkMetric {
             .peakMemoryResident,
             .syscalls,
             .instructions,
+            .cycles,
         ]
         return metrics
     }
@@ -174,6 +175,8 @@ public extension BenchmarkMetric {
             .readBytesPhysical,
             .writeBytesPhysical,
             .instructions,
+            .cycles,
+            .branchMissRate,
             .allocatedResidentMemory,
             .objectAllocCount,
             .retainCount,

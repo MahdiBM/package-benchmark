@@ -12,7 +12,7 @@
 extension BenchmarkExecutor {
     func performanceCountersNeeded(_ metric: BenchmarkMetric) -> Bool {
         switch metric {
-        case .instructions:
+        case .instructions, .cycles, .branchMissRate:
             return true
         default:
             return false
@@ -137,7 +137,7 @@ extension BenchmarkExecutor {
             return true
         case .writeBytesPhysical:
             return true
-        case .instructions:
+        case .instructions, .cycles, .branchMissRate:
             return true
         default:
             return false

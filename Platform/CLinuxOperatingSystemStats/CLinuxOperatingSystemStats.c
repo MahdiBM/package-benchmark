@@ -43,9 +43,12 @@ struct performance_counters_context {
     int cpuCount;
 	int *cpus;
 	int *fds;
+	int *fdsCycles;
+	int *fdsBranches;
+	int *fdsBranchMisses;
 } performance_counters_context;
 
-struct performance_counters_context performanceCountersContext = {0, NULL, NULL};
+struct performance_counters_context performanceCountersContext = {0, NULL, NULL, NULL, NULL, NULL};
 
 // Utility function to read CPU IDs from /proc/cpuinfo, thanks to ChatGPT...
 int get_cpu_identifiers(int *cpu_array, int max_cpus) {
@@ -78,12 +81,18 @@ int get_cpu_identifiers(int *cpu_array, int max_cpus) {
 static void CLinuxPerformanceCountersInit() {
     int cpu, errorCode, readCPUCount, i;
     struct perf_event_attr  pe;
+    struct perf_event_attr  peCycles;
+    struct perf_event_attr  peBranches;
+    struct perf_event_attr  peBranchMisses;
 
     performanceCountersContext.cpuCount = (int)sysconf(_SC_NPROCESSORS_ONLN);
     performanceCountersContext.cpus = (int *)calloc(sizeof(int), performanceCountersContext.cpuCount);
     performanceCountersContext.fds = (int *)calloc(sizeof(int), performanceCountersContext.cpuCount);
+    performanceCountersContext.fdsCycles = (int *)calloc(sizeof(int), performanceCountersContext.cpuCount);
+    performanceCountersContext.fdsBranches = (int *)calloc(sizeof(int), performanceCountersContext.cpuCount);
+    performanceCountersContext.fdsBranchMisses = (int *)calloc(sizeof(int), performanceCountersContext.cpuCount);
 
-     if (!performanceCountersContext.cpus || !performanceCountersContext.fds) {
+     if (!performanceCountersContext.cpus || !performanceCountersContext.fds || !performanceCountersContext.fdsCycles || !performanceCountersContext.fdsBranches || !performanceCountersContext.fdsBranchMisses) {
         performanceCountersContext.cpuCount = 0;
         perror("Failed to allocate memory for CPUs or FDs");
         return;
@@ -115,7 +124,73 @@ static void CLinuxPerformanceCountersInit() {
             performanceCountersContext.cpuCount = 0;
 //            fprintf(stderr, "Can't enable performance counters for instructions metric, error in perf_event_open syscall, failed with [%d], error: %s\n", errorCode, strerror(errorCode));
             return;
-        } 
+        }
+    }
+
+    memset(&peCycles, 0, sizeof(peCycles));
+    peCycles.type = PERF_TYPE_HARDWARE;
+    peCycles.size = sizeof(peCycles);
+    peCycles.config = PERF_COUNT_HW_CPU_CYCLES;
+    peCycles.disabled = 1;
+    peCycles.exclude_kernel = 1;
+    peCycles.exclude_hv = 1;
+    peCycles.inherit = 1;
+//    peCycles.inherit_thread = 1; // Disabled for now as Linux 5.13 is not in widespread use yet
+    peCycles.inherit_stat = 1;
+    peCycles.pinned = 1;
+
+    for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu++) {
+        performanceCountersContext.fdsCycles[cpu] = syscall(SYS_perf_event_open, &peCycles, 0, performanceCountersContext.cpus[cpu], -1, 0);
+        errorCode = errno;
+        if (performanceCountersContext.fdsCycles[cpu] == -1) {
+            performanceCountersContext.cpuCount = 0;
+//            fprintf(stderr, "Can't enable performance counters for cycles metric, error in perf_event_open syscall, failed with [%d], error: %s\n", errorCode, strerror(errorCode));
+            return;
+        }
+    }
+
+    memset(&peBranches, 0, sizeof(peBranches));
+    peBranches.type = PERF_TYPE_HARDWARE;
+    peBranches.size = sizeof(peBranches);
+    peBranches.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
+    peBranches.disabled = 1;
+    peBranches.exclude_kernel = 1;
+    peBranches.exclude_hv = 1;
+    peBranches.inherit = 1;
+//    peBranches.inherit_thread = 1; // Disabled for now as Linux 5.13 is not in widespread use yet
+    peBranches.inherit_stat = 1;
+    peBranches.pinned = 1;
+
+    for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu++) {
+        performanceCountersContext.fdsBranches[cpu] = syscall(SYS_perf_event_open, &peBranches, 0, performanceCountersContext.cpus[cpu], -1, 0);
+        errorCode = errno;
+        if (performanceCountersContext.fdsBranches[cpu] == -1) {
+            performanceCountersContext.cpuCount = 0;
+//            fprintf(stderr, "Can't enable performance counters for branches metric, error in perf_event_open syscall, failed with [%d], error: %s\n", errorCode, strerror(errorCode));
+            return;
+        }
+    }
+
+    memset(&peBranchMisses, 0, sizeof(peBranchMisses));
+    peBranchMisses.type = PERF_TYPE_HARDWARE;
+    peBranchMisses.size = sizeof(peBranchMisses);
+    peBranchMisses.config = PERF_COUNT_HW_BRANCH_MISSES;
+    peBranchMisses.disabled = 1;
+    peBranchMisses.exclude_kernel = 1;
+    peBranchMisses.exclude_hv = 1;
+    peBranchMisses.inherit = 1;
+//    peBranchMisses.inherit_thread = 1; // Disabled for now as Linux 5.13 is not in widespread use yet
+    peBranchMisses.inherit_stat = 1;
+    peBranchMisses.pinned = 1;
+
+    for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu++) {
+        performanceCountersContext.fdsBranchMisses[cpu] = syscall(SYS_perf_event_open, &peBranchMisses, 0, performanceCountersContext.cpus[cpu], -1, 0);
+        errorCode = errno;
+        if (performanceCountersContext.fdsBranchMisses[cpu] == -1) {
+            performanceCountersContext.cpuCount = 0;
+//            fprintf(stderr, "Can't enable performance counters for branchMisses metric, error in perf_event_open syscall, failed with [%d], error: %s\n", errorCode, strerror(errorCode));
+            return;
+        }
     }
     return;
 }
@@ -124,6 +199,9 @@ static void CLinuxPerformanceCountersDeinit() {
     int cpu;
     for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu ++) {
         close(performanceCountersContext.fds[cpu]);
+        close(performanceCountersContext.fdsCycles[cpu]);
+        close(performanceCountersContext.fdsBranches[cpu]);
+        close(performanceCountersContext.fdsBranchMisses[cpu]);
     }
 }
 
@@ -132,6 +210,12 @@ void CLinuxPerformanceCountersEnable() {
     for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu ++) {
         ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_ENABLE, 0);
         ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_ENABLE, 0);
+        ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_ENABLE, 0);
+        ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_ENABLE, 0);
+        ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_RESET, 0);
     }
 }
 
@@ -139,6 +223,9 @@ void CLinuxPerformanceCountersDisable() {
     int cpu;
     for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu ++) {
         ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_DISABLE, 0);
+        ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_DISABLE, 0);
+        ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_DISABLE, 0);
+        ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_DISABLE, 0);
     }
 }
 
@@ -146,6 +233,9 @@ void CLinuxPerformanceCountersReset() {
     int cpu;
     for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu ++) {
         ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_RESET, 0);
+        ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_RESET, 0);
     }
 }
 
@@ -157,20 +247,42 @@ void CLinuxPerformanceCountersCurrent(struct performanceCounters *performanceCou
     // Loop through each CPU to read the counter values
     for (cpu = 0; cpu < performanceCountersContext.cpuCount; cpu++) {
         bytesRead = read(performanceCountersContext.fds[cpu], &readCounter, sizeof(readCounter));
-        
+
         if (bytesRead == 0) { // Pinned error state, should reenable the counters for this cpu
             ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_ENABLE, 0);
             ioctl(performanceCountersContext.fds[cpu], PERF_EVENT_IOC_RESET, 0);
-            continue;
-        } else if (bytesRead == -1) {
-            continue;  // Continue with the next CPU in case of error
-        } else if (bytesRead != sizeof(readCounter)) {
-            continue;  // Continue with the next CPU in case of incomplete data
+        } else if (bytesRead == sizeof(readCounter)) { // ignore errors and incomplete data
+            performanceCounters->instructions += readCounter;
         }
 
-        performanceCounters->instructions += readCounter;
+        bytesRead = read(performanceCountersContext.fdsCycles[cpu], &readCounter, sizeof(readCounter));
+
+        if (bytesRead == 0) { // Pinned error state, should reenable the counters for this cpu
+            ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_ENABLE, 0);
+            ioctl(performanceCountersContext.fdsCycles[cpu], PERF_EVENT_IOC_RESET, 0);
+        } else if (bytesRead == sizeof(readCounter)) { // ignore errors and incomplete data
+            performanceCounters->cycles += readCounter;
+        }
+
+        bytesRead = read(performanceCountersContext.fdsBranches[cpu], &readCounter, sizeof(readCounter));
+
+        if (bytesRead == 0) { // Pinned error state, should reenable the counters for this cpu
+            ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_ENABLE, 0);
+            ioctl(performanceCountersContext.fdsBranches[cpu], PERF_EVENT_IOC_RESET, 0);
+        } else if (bytesRead == sizeof(readCounter)) { // ignore errors and incomplete data
+            performanceCounters->branches += readCounter;
+        }
+
+        bytesRead = read(performanceCountersContext.fdsBranchMisses[cpu], &readCounter, sizeof(readCounter));
+
+        if (bytesRead == 0) { // Pinned error state, should reenable the counters for this cpu
+            ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_ENABLE, 0);
+            ioctl(performanceCountersContext.fdsBranchMisses[cpu], PERF_EVENT_IOC_RESET, 0);
+        } else if (bytesRead == sizeof(readCounter)) { // ignore errors and incomplete data
+            performanceCounters->branchMisses += readCounter;
+        }
     }
-  
+
     return;
 }
 

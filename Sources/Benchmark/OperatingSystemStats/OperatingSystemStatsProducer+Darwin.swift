@@ -199,7 +199,7 @@ final class OperatingSystemStatsProducer {
         var usage = rusage_info_current()
 
         if metrics.contains(.writeBytesPhysical) || metrics.contains(.writeBytesPhysical)
-            || metrics.contains(.writeSyscalls) || metrics.contains(.instructions)
+            || metrics.contains(.writeSyscalls) || metrics.contains(.instructions) || metrics.contains(.cycles)
         {
             usage = getRusage()
         }
@@ -237,6 +237,8 @@ final class OperatingSystemStatsProducer {
             return false
         case .readBytesLogical:
             return false
+        case .branchMissRate:
+            return false
         default:
             return true
         }
@@ -258,7 +260,7 @@ final class OperatingSystemStatsProducer {
     func makePerformanceCounters() -> PerformanceCounters {
         #if os(macOS)
         let performanceCounters = getRusage()
-        return .init(instructions: performanceCounters.ri_instructions)
+        return .init(instructions: performanceCounters.ri_instructions, cycles: performanceCounters.ri_cycles)
         #else
         return .init()
         #endif

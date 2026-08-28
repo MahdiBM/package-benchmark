@@ -43,6 +43,9 @@ void CLinuxCPUTimeStats(struct cpuTimeStats *cpuTimeStats);
 
 struct performanceCounters {
     unsigned long long instructions;
+    unsigned long long cycles;
+    unsigned long long branches;
+    unsigned long long branchMisses;
 } performanceCounters;
 
 void CLinuxPerformanceCountersCurrent(struct performanceCounters *performanceCounters); // return current counters

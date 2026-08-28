@@ -258,7 +258,12 @@ final class OperatingSystemStatsProducer {
     func makePerformanceCounters() -> PerformanceCounters {
         var performanceCounters: performanceCounters = .init()
         CLinuxPerformanceCountersCurrent(&performanceCounters)
-        return .init(instructions: performanceCounters.instructions)
+        return .init(
+            instructions: performanceCounters.instructions,
+            cycles: performanceCounters.cycles,
+            branches: performanceCounters.branches,
+            branchMisses: performanceCounters.branchMisses
+        )
     }
 }
 #endif
